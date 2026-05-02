@@ -15,6 +15,14 @@ def reactive_obst_avoid(lidar):
     speed = 0.0
     rotation_speed = 0.0
 
+    if min(laser_dist) < 25:
+        speed = 0.0
+        rotation_speed = random.choice([-1, 1]) * 0.5
+
+    else:
+        speed = 0.5
+        rotation_speed = 0.0
+
     command = {"forward": speed,
                "rotation": rotation_speed}
 
@@ -32,6 +40,12 @@ def potential_field_control(lidar, current_pose, goal_pose):
     on initial pose, x forward, y on left)
     """
     # TODO for TP2
+
+
+    x, y, theta = current_pose
+    goal_x, goal_y, _ = goal_pose
+
+    
 
     command = {"forward": 0,
                "rotation": 0}
