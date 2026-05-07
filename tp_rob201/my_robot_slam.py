@@ -55,11 +55,15 @@ class MyRobotSlam(RobotAbstract):
         self.counter += 1
         pose = self.odometer_values()
 
+        if self.counter > 10:
+            score = self.tiny_slam.localise(self.lidar(), pose)        
+
+        pose = self.tiny_slam.get_corrected_pose(pose) 
         self.tiny_slam.update_map(self.lidar(), pose)
 
         if self.counter % 10 == 0:
             self.occupancy_grid.display_cv(robot_pose=pose, goal=self.goal)
-     
+
         return self.control_tp2()
 
     def control_tp1(self):
