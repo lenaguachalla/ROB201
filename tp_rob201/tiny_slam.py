@@ -59,6 +59,24 @@ class TinySlam:
         """
         # TODO for TP3
 
+        # convert lidar data from polar coordinates in robot frame to global cartesian coordinates 
+        distances = lidar.get_sensor_values()
+        angles = lidar.get_ray_angles()
+        
+        x_list = np.cos(angles + pose[2]) * distances + pose[0]
+        y_list = np.sin(angles + pose[2]) * distances + pose[1]
+
+        # update points on the line between robot and point with weak probability
+        for x, y in zip(x_list, y_list):
+            self.grid.add_value_along_line(pose[0], pose[1], x, y, val=-0.95)
+
+        # update points with strong probability
+        self.grid.add_map_points(x_list, y_list, val=2)
+
+        # threshold to avoid divergences
+        self.grid.occupancy_map = np.clip(self.grid.occupancy_map, -20, 20)
+
+    '''
     def compute(self):
         """ Useless function, just for the exercise on using the profiler """
         # Remove after TP1
@@ -72,3 +90,4 @@ class TinySlam:
             pt_x = ranges[i] * np.cos(ray_angles[i])
             pt_y = ranges[i] * np.sin(ray_angles[i])
             points.append([pt_x, pt_y])
+    '''
