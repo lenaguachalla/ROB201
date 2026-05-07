@@ -11,20 +11,25 @@ def reactive_obst_avoid(lidar):
     """
     # TODO for TP1
 
-    laser_dist = lidar.get_sensor_values()
-    speed = 0.0
-    rotation_speed = 0.0
+    # get lidar data
+    distances = lidar.get_sensor_values()
+    angles = lidar.get_ray_angles()
 
-    if min(laser_dist) < 25:
-        speed = 0.0
-        rotation_speed = random.choice([-1, 1]) * 0.5
+    # adjusting field of view to front of the robot 
+    vision_angle = 20 * np.pi / 180   
+    front_distances = distances[(angles > -vision_angle) & (angles < vision_angle)]
 
+    # threshold for obstacle detection
+    if np.min(front_distances) < 20:
+        command = {
+            "forward": 0.0,
+            "rotation": 0.5
+        }
     else:
-        speed = 0.5
-        rotation_speed = 0.0
-
-    command = {"forward": speed,
-               "rotation": rotation_speed}
+        command = {
+            "forward": 0.5, 
+            "rotation": 0.0
+        }
 
     return command
 
@@ -41,13 +46,48 @@ def potential_field_control(lidar, current_pose, goal_pose):
     """
     # TODO for TP2
 
+    # parameters
+    K_goal = 1
+    K_obs = 8500
+    safe_dist = 25.0
 
-    x, y, theta = current_pose
-    goal_x, goal_y, _ = goal_pose
+    curr_pos = current_pose[:2]
+    goal_pos = goal_pose[:2]
+    theta = current_pose[2]
 
+    goal_dist = np.linalg.norm(goal_pos - curr_pos)
     
+    # stop condition when close to goal
+    if goal_dist < 10.0:
+        return {"forward": 0.0, "rotation": 0.0}
+    else:
+        # attractive gradient
+        grad_attr = K_goal * (goal_pos - curr_pos) / goal_dist
+    
+    # reference shift to robot frame 
+    c, s = np.cos(theta), np.sin(theta)
+    rot_matrix = np.array([[c, s], [-s, c]])
+    grad_attr = rot_matrix @ grad_attr
+    
+    # repulsive gradient
+    grad_rep = np.zeros(2)
+    distances = lidar.get_sensor_values()
+    angles = lidar.get_ray_angles()
 
-    command = {"forward": 0,
-               "rotation": 0}
+    for d, angle in zip(distances, angles):
+        if (d < safe_dist) and (d > 0.1):
+            mag = K_obs * (1.0/d - 1.0/safe_dist) * (1.0/d**2)
+            grad_rep -= mag * np.array([np.cos(angle), np.sin(angle)]) 
 
+    # final potential field gradient
+    grad_final = grad_attr + grad_rep
+    
+    speed = np.linalg.norm(grad_final)
+    rotation = np.arctan2(grad_final[1], grad_final[0]) * 0.5
+
+    speed = np.clip(speed, 0, 0.5)
+    rotation = np.clip(rotation, -0.5, 0.5)
+    
+    command = {"forward": speed,
+               "rotation": rotation}
     return command
