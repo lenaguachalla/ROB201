@@ -41,7 +41,7 @@ class TinySlam:
         x_map, y_map = self.grid.conv_world_to_map(x, y)
 
         #erase points outise of grid limits
-        mask = (x_map > 0) & (x_map < self.grid.x_max_map) & (y_map > 0) & (y_map < self.grid.y_max_map)
+        mask = (x_map >= 0) & (x_map < self.grid.x_max_map) & (y_map >= 0) & (y_map < self.grid.y_max_map)
         x_map = x_map[mask]
         y_map = y_map[mask]
 
@@ -84,28 +84,31 @@ class TinySlam:
 
         best_score = 0
         i = 0
-        n = 200
-        sigma = 1
+        n = 100
+        sigma = [2, 2, 0.1]
 
         pose = self.get_corrected_pose(raw_odom_pose)
-        best_score = self._score(lidar, pose)
-        best_pose = self.odom_pose_ref.copy()
+        best_score = self._score(lidar,pose)
+        best_pose_ref = self.odom_pose_ref.copy()
 
         while i < n:
             # random offset with gaussian distribution
-            rand_pose = pose + np.random.normal(0, sigma, 3)
+            offset = np.random.normal(0, sigma)
+            pose_ref = best_pose_ref + offset
 
             # compute score of this pose
-            score = self._score(lidar, rand_pose)
+            pose = self.get_corrected_pose(raw_odom_pose, pose_ref)
+            score = self._score(lidar, pose)
 
             # update best pose if better score
             if score > best_score:
                 best_score = score
-                best_pose = rand_pose
+                best_pose_ref = pose_ref
+                i = 0
+            else:
+                i += 1
 
-        i += 1
-
-        self.odom_pose_ref = best_pose            
+        self.odom_pose_ref = best_pose_ref            
 
         return best_score
 
@@ -133,19 +136,3 @@ class TinySlam:
 
         # threshold to avoid divergences
         self.grid.occupancy_map = np.clip(self.grid.occupancy_map, -20, 20)
-
-    '''
-    def compute(self):
-        """ Useless function, just for the exercise on using the profiler """
-        # Remove after TP1
-
-        ranges = np.random.rand(3600)
-        ray_angles = np.arange(-np.pi, np.pi, np.pi / 1800)
-
-        # Poor implementation of polar to cartesian conversion
-        points = []
-        for i in range(3600):
-            pt_x = ranges[i] * np.cos(ray_angles[i])
-            pt_y = ranges[i] * np.sin(ray_angles[i])
-            points.append([pt_x, pt_y])
-    '''

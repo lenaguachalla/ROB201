@@ -49,7 +49,7 @@ def potential_field_control(lidar, current_pose, goal_pose):
     # parameters
     K_goal = 1
     K_obs = 8500
-    safe_dist = 25.0
+    safe_dist = 20.0
 
     curr_pos = current_pose[:2]
     goal_pos = goal_pose[:2]
@@ -85,9 +85,10 @@ def potential_field_control(lidar, current_pose, goal_pose):
     speed = np.linalg.norm(grad_final)
     rotation = np.arctan2(grad_final[1], grad_final[0]) * 0.5
 
-    speed = np.clip(speed, 0, 0.5)
-    rotation = np.clip(rotation, -0.5, 0.5)
+    speed = np.clip(speed, 0, 0.2)
+    rotation = np.clip(rotation, -0.2, 0.2)
     
     command = {"forward": speed,
                "rotation": rotation}
+    
     return command

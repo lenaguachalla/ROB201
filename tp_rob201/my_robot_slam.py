@@ -45,7 +45,7 @@ class MyRobotSlam(RobotAbstract):
 
         # storage for pose after localization
         self.corrected_pose = np.array([0, 0, 0])
-        self.goal = [-180, 0, 0]
+        self.goal = [-750, -20, 0]
 
     def control(self):
         """
@@ -53,18 +53,8 @@ class MyRobotSlam(RobotAbstract):
         """
 
         self.counter += 1
-        pose = self.odometer_values()
-
-        if self.counter > 10:
-            score = self.tiny_slam.localise(self.lidar(), pose)        
-
-        pose = self.tiny_slam.get_corrected_pose(pose) 
-        self.tiny_slam.update_map(self.lidar(), pose)
-
-        if self.counter % 10 == 0:
-            self.occupancy_grid.display_cv(robot_pose=pose, goal=self.goal)
-
-        return self.control_tp2()
+            
+        return self.control_tp4()
 
     def control_tp1(self):
         """
@@ -88,4 +78,70 @@ class MyRobotSlam(RobotAbstract):
         # Compute new command speed to perform obstacle avoidance
         command = potential_field_control(self.lidar(), pose, goal)
 
+        return command
+    
+    def control_tp3(self):
+        """
+        Control function for TP3
+        Main control function with full SLAM, random exploration and path planning
+        """
+        pose = self.odometer_values()
+
+        # update map
+        self.tiny_slam.update_map(self.lidar(), pose)
+
+        # new command
+        command = potential_field_control(self.lidar(), pose, self.goal)
+
+        # if goal reached, set a new random goal
+        if command == {'forward': 0, 'rotation': 0}:
+            self.goal = np.random.uniform(low=[-500, -500, 0], high=[500, 140, 0])
+        
+        if self.counter % 10 == 0:
+            self.occupancy_grid.display_cv(robot_pose=pose, goal=self.goal)
+
+        return command
+
+    def control_tp4(self):
+        """
+        Control function for TP4
+        Main control function with full SLAM, random exploration and path planning
+        """
+        pose = self.odometer_values()
+
+        if self.counter > 10:
+            score = self.tiny_slam.localise(self.lidar(), pose)
+        
+        self.tiny_slam.update_map(self.lidar(), pose)
+
+        command = potential_field_control(self.lidar(), pose, self.goal)
+
+        if command == {'forward': 0, 'rotation': 0}:
+            self.goal = np.random.uniform(low=[-200, -200, 0], high=[200, 200, 0])
+        
+        if self.counter % 10 == 0:
+            self.occupancy_grid.display_cv(pose, self.goal)
+        
+        return command
+
+    def control_tp5(self):
+        """
+        Control function for TP5
+        Main control function with full SLAM, random exploration and path planning
+        """
+        pose = self.odometer_values()
+
+        if self.counter > 10:
+            score = self.tiny_slam.localise(self.lidar(), pose)
+        
+        self.tiny_slam.update_map(self.lidar(), pose)
+
+        command = potential_field_control(self.lidar(), pose, self.goal)
+
+        if command == {'forward': 0, 'rotation': 0}:
+            self.goal = np.random.uniform(low=[-200, -200, 0], high=[200, 200, 0])
+        
+        if self.counter % 10 == 0:
+            self.occupancy_grid.display_cv(pose, self.goal)
+        
         return command
