@@ -129,10 +129,10 @@ class TinySlam:
 
         # update points on the line between robot and point with weak probability
         for x, y in zip(x_list, y_list):
-            self.grid.add_value_along_line(pose[0], pose[1], x, y, val=-0.95)
+            self.grid.add_value_along_line(pose[0], pose[1], x, y, val=-0.1)
 
         # update points with strong probability
-        self.grid.add_map_points(x_list, y_list, val=2)
+        self.grid.add_map_points(x_list, y_list, val=0.35)
 
         # threshold to avoid divergences
         self.grid.occupancy_map = np.clip(self.grid.occupancy_map, -20, 20)

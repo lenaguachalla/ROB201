@@ -47,14 +47,17 @@ class MyRobotSlam(RobotAbstract):
         self.corrected_pose = np.array([0, 0, 0])
         self.goal = [-750, -20, 0]
 
+        self.path = None
+
     def control(self):
         """
         Main control function executed at each time step
         """
 
         self.counter += 1
+        #print(self.counter)
             
-        return self.control_tp4()
+        return self.control_tp5()
 
     def control_tp1(self):
         """
@@ -70,7 +73,7 @@ class MyRobotSlam(RobotAbstract):
     def control_tp2(self):
         """
         Control function for TP2
-        Main control function with full SLAM, random exploration and path planning
+        Function with potential field control and goal reaching
         """
         pose = self.odometer_values()
         goal = [-750,-20,0]
@@ -83,7 +86,7 @@ class MyRobotSlam(RobotAbstract):
     def control_tp3(self):
         """
         Control function for TP3
-        Main control function with full SLAM, random exploration and path planning
+        Control function with SLAM map update 
         """
         pose = self.odometer_values()
 
@@ -105,14 +108,15 @@ class MyRobotSlam(RobotAbstract):
     def control_tp4(self):
         """
         Control function for TP4
-        Main control function with full SLAM, random exploration and path planning
+        Control function with full SLAM and random exploration
         """
         pose = self.odometer_values()
 
         if self.counter > 10:
             score = self.tiny_slam.localise(self.lidar(), pose)
-        
-        self.tiny_slam.update_map(self.lidar(), pose)
+            
+            if score > -200:
+                self.tiny_slam.update_map(self.lidar(), pose)
 
         command = potential_field_control(self.lidar(), pose, self.goal)
 
@@ -131,10 +135,14 @@ class MyRobotSlam(RobotAbstract):
         """
         pose = self.odometer_values()
 
+        if self.counter < 10:
+            self.tiny_slam.update_map(self.lidar(), pose)
+
         if self.counter > 10:
             score = self.tiny_slam.localise(self.lidar(), pose)
-        
-        self.tiny_slam.update_map(self.lidar(), pose)
+
+            if score > 50:
+                self.tiny_slam.update_map(self.lidar(), pose)
 
         command = potential_field_control(self.lidar(), pose, self.goal)
 
@@ -143,5 +151,13 @@ class MyRobotSlam(RobotAbstract):
         
         if self.counter % 10 == 0:
             self.occupancy_grid.display_cv(pose, self.goal)
+
+        if self.counter > 3000:
+            self.goal = [0,0,0]
+
+            while(1):
+
+                traj = self.planner.plan(pose, self.goal)
+                self.occupancy_grid.display_cv(pose, self.goal, traj)
         
         return command
