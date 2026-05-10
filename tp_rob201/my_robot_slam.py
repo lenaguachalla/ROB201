@@ -61,7 +61,7 @@ class MyRobotSlam(RobotAbstract):
         self.counter += 1
         #print(self.counter)
             
-        return self.control_tp3()
+        return self.control_tp5()
 
     def control_tp1(self):
         """
