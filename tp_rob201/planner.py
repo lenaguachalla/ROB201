@@ -26,15 +26,22 @@ class Planner:
             with the format of current_cell: (i, j) in the map frame
         """
         # TODO for TP5: iterate through neighbors and add free ones to neighbor_list
-        
+
+        # list to add neighbors        
         neighbor_list = []
         x, y = current_cell
 
+        # adjacent cells to current cell
         for dx in [-1, 0, 1]:
             for dy in [-1, 0, 1]:
+
+                # if current cell
                 if dx == 0 and dy == 0:
                     continue
+                
                 neighbor = (x + dx, y + dy)
+                
+                # check grid limits to add neighbor into list
                 if (0 <= neighbor[0] < self.grid.x_max_map) and (0 <= neighbor[1] < self.grid.y_max_map):
                     neighbor_list.append(neighbor)
 
@@ -44,8 +51,9 @@ class Planner:
         """ Return heuristic goal distance """
         # TODO for TP5: compute heuristic distance between cell_1 and cell_2
         
-        h = np.linalg.norm(np.array(cell_1) - np.array(cell_2))
-        
+        # simple euclidean distance
+        h = np.sqrt((cell_1[0] - cell_2[0])**2 + (cell_1[1] - cell_2[1])**2)
+
         return h
 
     def reconstruct_path(self, came_from, goal):
@@ -69,17 +77,19 @@ class Planner:
 
         start: Tuple[int, int] = self.grid.conv_world_to_map(start[0], start[1])
         goal: Tuple[int, int] = self.grid.conv_world_to_map(goal[0], goal[1])
-
+    
         # creates a copy of occupancy map to modify it and take into account
         # a margin in the walls
         self.map_walls = copy.deepcopy(self.grid.occupancy_map)
         
         # TODO for TP5: dilate walls in self.map_walls to take into account a margin around obstacles
         
-        kernel = np.ones((3, 3), dtype=np.uint8)
-        self.map_walls = cv2.dilate(self.map_walls.astype(np.uint8), kernel, iterations=1)  
+        # initialize kernel to dilate walls
+        kernel = np.ones((15, 15), np.uint8)
+        wall_mask = (self.map_walls > 0).astype(np.uint8)
+        self.map_walls = cv2.dilate(wall_mask, kernel, iterations=1)    
 
-        cv2.imshow("map_walls", self.map_walls)
+        #cv2.imshow("map_walls", self.map_walls)
 
         # min heap to contain values to explore next
         open_set = [(0.0, start)]
@@ -107,6 +117,9 @@ class Planner:
 
             neighbours = self.get_neighbors(current_cell)
             for cell in neighbours:
+                # skip cell if it is a wall
+                if self.map_walls[cell[0], cell[1]] > 0:
+                    continue
                 tentative_g_score = g_score[current_cell] + self.heuristic(current_cell, cell)
                 if tentative_g_score < g_score[cell]:
                     # better path, recording it
@@ -118,8 +131,3 @@ class Planner:
         # goal was never reached
         print('failed getting to objective')
         return None
-
-    def explore_frontiers(self):
-        """ Frontier based exploration """
-        goal = np.array([0, 0, 0])  # frontier to reach for exploration
-        return goal

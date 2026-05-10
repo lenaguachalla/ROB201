@@ -45,9 +45,13 @@ class MyRobotSlam(RobotAbstract):
 
         # storage for pose after localization
         self.corrected_pose = np.array([0, 0, 0])
-        self.goal = [-750, -20, 0]
+        self.goal = [0, -500, 0]
 
         self.path = None
+
+        self.visited_frontiers = []
+        self.frontier_stuck_counter = 0
+        self.frontier_goal_world = None 
 
     def control(self):
         """
@@ -57,14 +61,14 @@ class MyRobotSlam(RobotAbstract):
         self.counter += 1
         #print(self.counter)
             
-        return self.control_tp5()
+        return self.control_tp3()
 
     def control_tp1(self):
         """
         Control function for TP1
         Control funtion with minimal random motion
         """
-        self.tiny_slam.compute()
+        # self.tiny_slam.compute() 
 
         # Compute new command speed to perform obstacle avoidance
         command = reactive_obst_avoid(self.lidar())
@@ -93,13 +97,14 @@ class MyRobotSlam(RobotAbstract):
         # update map
         self.tiny_slam.update_map(self.lidar(), pose)
 
-        # new command
+        # new speed command
         command = potential_field_control(self.lidar(), pose, self.goal)
 
         # if goal reached, set a new random goal
         if command == {'forward': 0, 'rotation': 0}:
-            self.goal = np.random.uniform(low=[-500, -500, 0], high=[500, 140, 0])
+            self.goal = pose + np.random.uniform(low=[-100, -100, 0], high=[100, 100, 0])
         
+        # display every 10 steps 
         if self.counter % 10 == 0:
             self.occupancy_grid.display_cv(robot_pose=pose, goal=self.goal)
 
@@ -112,17 +117,22 @@ class MyRobotSlam(RobotAbstract):
         """
         pose = self.odometer_values()
 
+        # waits map initialization to calculate score
         if self.counter > 10:
             score = self.tiny_slam.localise(self.lidar(), pose)
             
+            # updates map with score threshold
             if score > -200:
                 self.tiny_slam.update_map(self.lidar(), pose)
 
+        # new command speed
         command = potential_field_control(self.lidar(), pose, self.goal)
 
+        # simple goal change to continue exploring randomly
         if command == {'forward': 0, 'rotation': 0}:
-            self.goal = np.random.uniform(low=[-200, -200, 0], high=[200, 200, 0])
+            self.goal = pose + np.random.uniform(low=[-100, -100, 0], high=[100, 100, 0])
         
+        # display every 10 steps
         if self.counter % 10 == 0:
             self.occupancy_grid.display_cv(pose, self.goal)
         
@@ -135,29 +145,47 @@ class MyRobotSlam(RobotAbstract):
         """
         pose = self.odometer_values()
 
+        # initializes map 
         if self.counter < 10:
             self.tiny_slam.update_map(self.lidar(), pose)
 
+        # after initialization, checks position
         if self.counter > 10:
             score = self.tiny_slam.localise(self.lidar(), pose)
 
+            # updates with score threshold
             if score > 50:
                 self.tiny_slam.update_map(self.lidar(), pose)
 
-        command = potential_field_control(self.lidar(), pose, self.goal)
+        # steps for exploration before path planning back to origin
+        if self.counter % 1500 == 0:
+            self.path = self.planner.plan(pose, [0, 0, 0])
+            if self.path is not None and self.path.shape[1] > 0:
+                # updates goal according to path
+                self.goal = np.array([self.path[0, 0], self.path[1, 0], 0])
 
-        if command == {'forward': 0, 'rotation': 0}:
-            self.goal = np.random.uniform(low=[-200, -200, 0], high=[200, 200, 0])
-        
-        if self.counter % 10 == 0:
-            self.occupancy_grid.display_cv(pose, self.goal)
+        # if the path was planned and robot is back to origin, stops
+        if self.path is not None and np.linalg.norm(pose[:2]) < 20:
+            print("Origin reached")
+            command = {'forward': 0, 'rotation': 0}
 
-        if self.counter > 3000:
-            self.goal = [0,0,0]
+        else:
 
-            while(1):
+            # new speed command
+            command = potential_field_control(self.lidar(), pose, self.goal)
 
-                traj = self.planner.plan(pose, self.goal)
-                self.occupancy_grid.display_cv(pose, self.goal, traj)
-        
+            # if commanded to stop, check next goal
+            if command == {'forward': 0, 'rotation': 0}:
+                if self.path is not None and self.path.shape[1] > 0:
+                    self.goal = np.array([self.path[0, 0], self.path[1, 0], 0])
+                    # updates path
+                    self.path = self.path[:, 1:]
+                else:
+                    # chooses random goal if robot stopped out of origin
+                    self.goal = np.random.uniform(low=[-600, -600, 0], high=[100, 100, 0])
+                
+            # updates display every 10 steps
+            if self.counter % 10 == 0:
+                self.occupancy_grid.display_cv(pose, self.goal, self.path)
+
         return command

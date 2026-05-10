@@ -21,26 +21,26 @@ class TinySlam:
         pose : [x, y, theta] nparray, position of the robot to evaluate, in world coordinates
         """
         # TODO for TP4
-
         score = 0
 
-        # erase points after maximum distance of laser
+        # get lidar reading and maximum distance of laser
         distances = lidar.get_sensor_values()
         angles = lidar.get_ray_angles()
         max_range = lidar.max_range
 
+        # mask to erase points after max range of readings
         mask = distances < max_range
         distances = distances[mask]
         angles = angles[mask]
 
-        # estimate positions of detection in world coordinates
+        # estimate positions of detection in world coordinates 
         x = np.cos(angles + pose[2]) * distances + pose[0]
         y = np.sin(angles + pose[2]) * distances + pose[1]
 
         # convert positions into index of cells in the grid  
         x_map, y_map = self.grid.conv_world_to_map(x, y)
 
-        #erase points outise of grid limits
+        # erase points outise of grid limits
         mask = (x_map >= 0) & (x_map < self.grid.x_max_map) & (y_map >= 0) & (y_map < self.grid.y_max_map)
         x_map = x_map[mask]
         y_map = y_map[mask]
@@ -63,9 +63,11 @@ class TinySlam:
         if odom_pose_ref is None:
             odom_pose_ref = self.odom_pose_ref
 
+        # distance and angle of odometer ref to robot ref
         d = np.sqrt(odom_pose[0]**2 + odom_pose[1]**2)
         alpha = np.arctan2(odom_pose[1], odom_pose[0])
 
+        # correct position of robot in world coordinates
         x = odom_pose_ref[0] + d * np.cos(alpha + odom_pose_ref[2])
         y = odom_pose_ref[1] + d * np.sin(alpha + odom_pose_ref[2])
         theta = odom_pose_ref[2] + odom_pose[2]        
@@ -83,12 +85,17 @@ class TinySlam:
         # TODO for TP4
 
         best_score = 0
-        i = 0
-        n = 100
-        sigma = [2, 2, 0.1]
+        i = 0 # counter
+        n = 100 # number of tries to update odometry reference
+        sigma = [2, 2, 0.15] # variance of gaussian distribution for reference candidates
 
+        # gets corrected position of robot in world coordinates
         pose = self.get_corrected_pose(raw_odom_pose)
+
+        # calculates score based on this reference
         best_score = self._score(lidar,pose)
+        
+        # takes last best odometer reference
         best_pose_ref = self.odom_pose_ref.copy()
 
         while i < n:
@@ -96,11 +103,11 @@ class TinySlam:
             offset = np.random.normal(0, sigma)
             pose_ref = best_pose_ref + offset
 
-            # compute score of this pose
+            # compute score of this position
             pose = self.get_corrected_pose(raw_odom_pose, pose_ref)
             score = self._score(lidar, pose)
 
-            # update best pose if better score
+            # update best score and reference and stops searching
             if score > best_score:
                 best_score = score
                 best_pose_ref = pose_ref
@@ -124,10 +131,11 @@ class TinySlam:
         distances = lidar.get_sensor_values()
         angles = lidar.get_ray_angles()
         
+        # robot position in world coordinates
         x_list = np.cos(angles + pose[2]) * distances + pose[0]
         y_list = np.sin(angles + pose[2]) * distances + pose[1]
 
-        # update points on the line between robot and point with weak probability
+        # update the line between robot and point with weak probability
         for x, y in zip(x_list, y_list):
             self.grid.add_value_along_line(pose[0], pose[1], x, y, val=-0.1)
 

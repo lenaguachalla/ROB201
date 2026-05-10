@@ -51,17 +51,19 @@ def potential_field_control(lidar, current_pose, goal_pose):
     K_obs = 8500
     safe_dist = 20.0
 
+    # robot position
     curr_pos = current_pose[:2]
     goal_pos = goal_pose[:2]
     theta = current_pose[2]
 
+    # distance between robot and goal
     goal_dist = np.linalg.norm(goal_pos - curr_pos)
     
     # stop condition when close to goal
-    if goal_dist < 10.0:
+    if goal_dist < 30.0:
         return {"forward": 0.0, "rotation": 0.0}
     else:
-        # attractive gradient
+        # calculates attractive gradient
         grad_attr = K_goal * (goal_pos - curr_pos) / goal_dist
     
     # reference shift to robot frame 
@@ -74,6 +76,7 @@ def potential_field_control(lidar, current_pose, goal_pose):
     distances = lidar.get_sensor_values()
     angles = lidar.get_ray_angles()
 
+    # sum repulsive gradient of close objects
     for d, angle in zip(distances, angles):
         if (d < safe_dist) and (d > 0.1):
             mag = K_obs * (1.0/d - 1.0/safe_dist) * (1.0/d**2)
@@ -82,10 +85,13 @@ def potential_field_control(lidar, current_pose, goal_pose):
     # final potential field gradient
     grad_final = grad_attr + grad_rep
     
+    # forward and rotation speed according to gradient
     speed = np.linalg.norm(grad_final)
+    # rotation speed is very sensible, set small angle gain
     rotation = np.arctan2(grad_final[1], grad_final[0]) * 0.5
 
-    speed = np.clip(speed, 0, 0.2)
+    # clips speeds to avoid bad cartography
+    speed = np.clip(speed, -0.2, 0.2)
     rotation = np.clip(rotation, -0.2, 0.2)
     
     command = {"forward": speed,
