@@ -33,6 +33,50 @@ def reactive_obst_avoid(lidar):
 
     return command
 
+def wall_follow(lidar):
+    """
+    Simple wall following behavior
+    lidar : placebot object with lidar data
+    """
+    # gets lidar data
+    distances = lidar.get_sensor_values()
+    angles = lidar.get_ray_angles()
+
+    # gets vision from front and right sides of the robot
+    vision_angle = 20 * np.pi / 180 
+    front = np.mean(distances[np.abs(angles) < vision_angle])
+    right = np.mean(distances[np.abs(angles + np.pi/2) < vision_angle])
+
+    wall_dist       = 30   # desired distance from wall
+    front_threshold = 60  # obstacle ahead threshold
+    no_wall_dist    = 200  # distance to no wall detected
+
+    # turn left for obstacle ahead
+    if front < front_threshold:
+        forward  = 0.3
+        rotation = 1.0
+
+    # go straight if no wall on the right
+    elif right > no_wall_dist:
+        forward  = 0.5
+        rotation = 0.0
+
+    # turn left if close to right wall
+    elif right < wall_dist:
+        forward  = 0.5
+        rotation = 0.4
+
+    # turn right if far from right wall
+    elif right > wall_dist:
+        forward  = 0.5
+        rotation = -0.4
+
+    # go straight if good distance
+    else:
+        forward  = 0.5
+        rotation = 0.0
+
+    return {"forward": forward, "rotation": rotation}
 
 def potential_field_control(lidar, current_pose, goal_pose):
     """

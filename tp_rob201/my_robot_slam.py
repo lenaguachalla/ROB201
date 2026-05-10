@@ -10,7 +10,7 @@ from place_bot.simulation.ray_sensors.lidar import LidarParams
 
 from tiny_slam import TinySlam
 
-from control import potential_field_control, reactive_obst_avoid
+from control import potential_field_control, reactive_obst_avoid, wall_follow
 from occupancy_grid import OccupancyGrid
 from planner import Planner
 
@@ -61,7 +61,7 @@ class MyRobotSlam(RobotAbstract):
         self.counter += 1
         #print(self.counter)
             
-        return self.control_tp5()
+        return self.control_tp1_extended()
 
     def control_tp1(self):
         """
@@ -72,6 +72,16 @@ class MyRobotSlam(RobotAbstract):
 
         # Compute new command speed to perform obstacle avoidance
         command = reactive_obst_avoid(self.lidar())
+        return command
+    
+    def control_tp1_extended(self):
+        """
+        Control function for TP1
+        Control funtion with wall follow
+        """
+
+        # Compute new command speed to perform obstacle avoidance
+        command = wall_follow(self.lidar())
         return command
 
     def control_tp2(self):
@@ -187,5 +197,26 @@ class MyRobotSlam(RobotAbstract):
             # updates display every 10 steps
             if self.counter % 10 == 0:
                 self.occupancy_grid.display_cv(pose, self.goal, self.path)
+
+        return command
+    
+    def control_frontiers(self):
+        """
+        Control function for Frontier Based Exploration
+        """
+        pose = self.odometer_values()
+
+        # initializes map 
+        if self.counter < 10:
+            self.tiny_slam.update_map(self.lidar(), pose)
+
+        # after initialization, checks position
+        if self.counter > 10:
+            score = self.tiny_slam.localise(self.lidar(), pose)
+
+            # updates with score threshold
+            if score > 50:
+                self.tiny_slam.update_map(self.lidar(), pose)
+
 
         return command
