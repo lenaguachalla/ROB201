@@ -45,12 +45,11 @@ class MyRobotSlam(RobotAbstract):
 
         # storage for pose after localization
         self.corrected_pose = np.array([0, 0, 0])
-        self.goal = [0, -500, 0]
+        self.goal = [-600, -20, 0]
 
         self.path = None
 
         self.visited_frontiers = []
-        self.frontier_stuck_counter = 0
         self.frontier_goal_world = None 
 
     def control(self):
@@ -61,7 +60,7 @@ class MyRobotSlam(RobotAbstract):
         self.counter += 1
         #print(self.counter)
             
-        return self.control_tp1_extended()
+        return self.control_frontiers()
 
     def control_tp1(self):
         """
@@ -90,7 +89,7 @@ class MyRobotSlam(RobotAbstract):
         Function with potential field control and goal reaching
         """
         pose = self.odometer_values()
-        goal = [-750,-20,0]
+        goal = [-600,-30,0]
 
         # Compute new command speed to perform obstacle avoidance
         command = potential_field_control(self.lidar(), pose, goal)
@@ -112,7 +111,7 @@ class MyRobotSlam(RobotAbstract):
 
         # if goal reached, set a new random goal
         if command == {'forward': 0, 'rotation': 0}:
-            self.goal = pose + np.random.uniform(low=[-100, -100, 0], high=[100, 100, 0])
+            self.goal = pose + np.random.uniform(low=[-300, 0, 0], high=[100, 200, 0])
         
         # display every 10 steps 
         if self.counter % 10 == 0:
@@ -140,7 +139,7 @@ class MyRobotSlam(RobotAbstract):
 
         # simple goal change to continue exploring randomly
         if command == {'forward': 0, 'rotation': 0}:
-            self.goal = pose + np.random.uniform(low=[-100, -100, 0], high=[100, 100, 0])
+            self.goal = np.random.uniform(low=[-500, -500, 0], high=[100, 100, 0])
         
         # display every 10 steps
         if self.counter % 10 == 0:
@@ -168,7 +167,7 @@ class MyRobotSlam(RobotAbstract):
                 self.tiny_slam.update_map(self.lidar(), pose)
 
         # steps for exploration before path planning back to origin
-        if self.counter % 1500 == 0:
+        if self.counter % 2000 == 0:
             self.path = self.planner.plan(pose, [0, 0, 0])
             if self.path is not None and self.path.shape[1] > 0:
                 # updates goal according to path
@@ -202,21 +201,46 @@ class MyRobotSlam(RobotAbstract):
     
     def control_frontiers(self):
         """
-        Control function for Frontier Based Exploration
+        Control function with frontier based exploration
         """
         pose = self.odometer_values()
 
-        # initializes map 
+        # initialize map
         if self.counter < 10:
             self.tiny_slam.update_map(self.lidar(), pose)
 
-        # after initialization, checks position
+        # after initialization, localize and update map
         if self.counter > 10:
             score = self.tiny_slam.localise(self.lidar(), pose)
-
-            # updates with score threshold
             if score > 50:
                 self.tiny_slam.update_map(self.lidar(), pose)
 
+        # replan frontier every 300 steps
+        if self.counter % 300 == 0:
+            frontier_goal, frontier_path = self.planner.explore_frontiers(pose)
+
+            # update path and goal to next frontier
+            if frontier_goal is not None and frontier_path is not None:
+                self.path = frontier_path
+                self.goal = np.array([self.path[0, 0], self.path[1, 0], 0])
+                print(f"New frontier: {self.goal[:2]}, {self.path.shape[1]} waypoints")
+
+        # new speed command
+        command = potential_field_control(self.lidar(), pose, self.goal)
+
+        # if goal reached, advance to next one
+        if command == {'forward': 0, 'rotation': 0}:
+
+            if self.path is not None and self.path.shape[1] > 0:
+                # advance to next waypoint
+                self.goal = np.array([self.path[0, 0], self.path[1, 0], 0])
+                self.path = self.path[:, 1:]
+
+            else:
+                # makes robot walk a little if map is sparse
+                self.goal = pose + np.random.uniform(low=[-50, -50, 0], high=[50, 50, 0])
+
+        if self.counter % 10 == 0:
+            self.occupancy_grid.display_cv(pose, self.goal, self.path)
 
         return command

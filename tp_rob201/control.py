@@ -135,7 +135,7 @@ def potential_field_control(lidar, current_pose, goal_pose):
     rotation = np.arctan2(grad_final[1], grad_final[0]) * 0.5
 
     # clips speeds to avoid bad cartography
-    speed = np.clip(speed, -0.2, 0.2)
+    speed = np.clip(speed, -0.4, 0.4)
     rotation = np.clip(rotation, -0.2, 0.2)
     
     command = {"forward": speed,

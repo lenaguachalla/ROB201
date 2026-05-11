@@ -131,3 +131,53 @@ class Planner:
         # goal was never reached
         print('failed getting to objective')
         return None
+    
+    def explore_frontiers(self, robot_pose):
+        """
+        Frontier based exploration
+        """
+
+        occupancy = self.grid.occupancy_map
+        
+        # masks to different cell occupation levels
+        free_mask    = occupancy < -1.0
+        unknown_mask = np.abs(occupancy) < 0.2
+        wall_mask    = occupancy > 1.0
+
+        # dilate walls to avoid them
+        walls_dilated = cv2.dilate(wall_mask.astype(np.uint8), np.ones((5, 5), np.uint8), iterations=1)
+
+        # dilate unknown cells to choose them
+        unknown_dilated = cv2.dilate(unknown_mask.astype(np.uint8), np.ones((3, 3), np.uint8), iterations=1)
+        frontier_mask = free_mask & (unknown_dilated > 0) & (walls_dilated == 0)
+        
+        frontier_cells = np.argwhere(frontier_mask)  
+
+        # robot position in world coordinates
+        robot_cell = self.grid.conv_world_to_map(float(robot_pose[0]), float(robot_pose[1]))
+        robot_cell_rc = np.array([
+            int(np.clip(robot_cell[1], 0, self.grid.y_max_map - 1)),
+            int(np.clip(robot_cell[0], 0, self.grid.x_max_map - 1))])
+
+        # sort frontier cells by distance 
+        distances = np.linalg.norm(frontier_cells - robot_cell_rc, axis=1)
+        sorted_indices = np.argsort(distances)
+
+        # test nearest candidates
+        for idx in sorted_indices[:20]:
+
+            # get coordinates of candidate cell
+            cell = frontier_cells[idx]  
+            fx, fy = self.grid.conv_map_to_world(int(cell[1]), int(cell[0]))
+            fx = float(np.clip(fx, self.grid.x_min_world + 10, self.grid.x_max_world - 10))
+            fy = float(np.clip(fy, self.grid.y_min_world + 10, self.grid.y_max_world - 10))
+            goal_world = np.array([fx, fy, 0.0])
+
+            # try to find path
+            path = self.plan(robot_pose, goal_world)
+            if path is not None:
+                print(f"Frontier at ({fx:.1f}, {fy:.1f}), dist={distances[idx]:.1f} cells")
+                return goal_world, path
+
+        print("No reachable frontier in top 20 candidates")
+        return None, None
